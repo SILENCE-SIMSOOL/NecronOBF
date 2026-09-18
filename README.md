@@ -4,6 +4,9 @@ Necron Obfuscator is a low-overhead Java obfuscation tool.
 
 Its goal is not simply to make decompilation harder, but to make **full reconstruction of the original source structure and development intent significantly more difficult even after deobfuscation**.
 
+<img width="1240" height="800" alt="image" src="https://github.com/user-attachments/assets/c4413bad-7bd8-4945-8aa4-e2fae5ee332f" />
+<img width="1240" height="800" alt="image" src="https://github.com/user-attachments/assets/3dbf1232-28df-4229-b3f3-f04c1d645b34" />
+
 ---
 
 ## Goal
