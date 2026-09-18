@@ -1,6 +1,6 @@
-# SilenceProtector
+# Necron Obfuscator
 
-SilenceProtector is a low-overhead Java obfuscation tool.
+Necron Obfuscator is a low-overhead Java obfuscation tool.
 
 Its goal is not simply to make decompilation harder, but to make **full reconstruction of the original source structure and development intent significantly more difficult even after deobfuscation**.
 
@@ -8,11 +8,11 @@ Its goal is not simply to make decompilation harder, but to make **full reconstr
 
 ## Goal
 
-SilenceProtector does not attempt to make reverse engineering impossible.
+Necron Obfuscator does not attempt to make reverse engineering impossible.
 
 Java bytecode must ultimately execute on the JVM, so sufficiently motivated analysts can still study program behavior.
 
-Instead, SilenceProtector focuses on destroying source-level structure so that decompiled code is difficult to restore into a maintainable version of the original project.
+Instead, Necron Obfuscator focuses on destroying source-level structure so that decompiled code is difficult to restore into a maintainable version of the original project.
 
 ---
 
@@ -56,7 +56,7 @@ silence/cd/ef/Y.class
 
 ### Fabric Entrypoint Support
 
-When the main class is renamed or moved, SilenceProtector can automatically update the `entrypoints.client` value in `fabric.mod.json`.
+When the main class is renamed or moved, Necron Obfuscator can automatically update the `entrypoints.client` value in `fabric.mod.json`.
 
 ### String Protection
 
@@ -80,7 +80,7 @@ This allows the same input JAR to produce structurally different protected outpu
 
 ## Performance Philosophy
 
-SilenceProtector avoids sacrificing substantial runtime performance purely for obfuscation strength.
+Necron Obfuscator avoids sacrificing substantial runtime performance purely for obfuscation strength.
 
 It prioritizes build-time structural transformations such as:
 
@@ -131,7 +131,7 @@ The objective is to produce **decompiled code that is difficult to maintain, ext
 
 ## UI
 
-SilenceProtector provides a GUI for configuring major protection options.
+Necron Obfuscator provides a GUI for configuring major protection options.
 
 - Input JAR
 - Output JAR
@@ -158,20 +158,20 @@ gradle clean build
 Build output:
 
 ```text
-build/libs/SilenceProtector-1.0.0.jar
+build/libs/NecronObfuscator-1.0.0.jar
 ```
 
 Run:
 
 ```bash
-java -jar build/libs/SilenceProtector-1.0.0.jar
+java -jar build/libs/NecronObfuscator-1.0.0.jar
 ```
 
 ---
 
 ## Status
 
-SilenceProtector is currently under development.
+Necron Obfuscator is currently under development.
 
 Obfuscation strategies, compatibility behavior, performance characteristics, and randomization logic may change over time.
 
@@ -179,4 +179,4 @@ Obfuscation strategies, compatibility behavior, performance characteristics, and
 
 ## License
 
-MIT License
+[MIT License](https://github.com/SILENCE-SIMSOOL/NecronOBF/blob/main/LICENSE)
