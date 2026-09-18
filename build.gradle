@@ -1,0 +1,31 @@
+plugins {
+	id 'java'
+	id 'application'
+}
+
+group = 'silence.simsool'
+version = '1.0.0'
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.ow2.asm:asm:9.8'
+	implementation 'org.ow2.asm:asm-tree:9.8'
+	implementation 'org.ow2.asm:asm-commons:9.8'
+}
+
+application {
+	mainClass = 'silence.simsool.protector.obfuscator.Main'
+}
+
+jar {
+	manifest {
+		attributes 'Main-Class': application.mainClass
+	}
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	from {
+		configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+	}
+}
