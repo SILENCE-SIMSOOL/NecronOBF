@@ -36,7 +36,7 @@ public final class I18n {
 		boolean ko = currentLang == Lang.KO;
 		return switch (key) {
 			// Title & Slogans
-			case "title" -> "SilenceProtector";
+			case "title" -> "Necron Obfuscator";
 			case "slogan" -> "I like Meow with ArchTang.";
 			case "quote" -> ko ? "\u201C새로운 관점의 보호\u201D" : "\u201CA New Perspective on Protection\u201D";
 			case "quote_sub" -> ko ? "성능을 망가트리지 않고, 소스코드를 보호하세요." : "Protect your source code without sacrificing performance.";
@@ -65,6 +65,8 @@ public final class I18n {
 			case "main_class" -> ko ? "메인 클래스" : "Main Class";
 			case "fabric_toggle" -> ko ? "fabric.mod.json 진입점 자동 업데이트" : "Automatically update fabric.mod.json entrypoint";
 			case "fabric_toggle_sub" -> ko ? "fabric.mod.json 파일 발견 시 진입점을 자동으로 변경합니다." : "If a fabric.mod.json file is found, the entrypoint will be updated automatically.";
+			case "mixin_fixed_path" -> ko ? "믹스인 고정 경로 지정" : "Fixed Mixin Path";
+			case "mixin_fixed_path_sub" -> ko ? "믹스인 클래스들을 지정된 고정 경로에 배치합니다." : "Place mixin classes under a designated fixed path.";
 
 			case "card_opts" -> ko ? "보호 옵션" : "Protection Options";
 			case "card_opts_sub" -> ko ? "적용할 난독화 기능을 활성화하세요. 가볍고 강력하게 설계되었습니다." : "Enable the protection features you want to use. Designed for strong, lightweight obfuscation.";
@@ -103,6 +105,20 @@ public final class I18n {
 			case "tip_slogic_dynamic" -> ko ? "8개 정수/4개 Long 규칙 (권장 균형형)" : "8 int / 4 long rules with 2-4 op steps (Balanced).";
 			case "tip_slogic_ultra" -> ko ? "16개 정수/8개 Long 규칙 (최대 복잡도)" : "16 int / 8 long rules with 3-5 op steps (Max).";
 			case "tip_slogic_stealth" -> ko ? "4개 정수/2개 Long 규칙 (초경량 크기)" : "4 int / 2 long rules for minimal footprint.";
+
+			// JNIC
+			case "card_jnic" -> ko ? "JNIC / 네이티브 보호" : "JNIC / Native Protection";
+			case "card_jnic_sub" -> ko ? "JNIC 네이티브 바이너리 컴파일 및 SLogic 이름 변경을 설정하세요." : "Configure JNIC native binary compilation and SLogic name obfuscation.";
+			case "opt_jnic" -> ko ? "JNIC 난독화" : "JNIC Obfuscation";
+			case "opt_jnic_sub" -> ko ? "C/C++ 네이티브 바이너리로 컴파일" : "Compile to C/C++ native binary";
+			case "opt_slogic_rename" -> ko ? "SLogic 이름 변경" : "SLogic Name Change";
+			case "opt_slogic_rename_sub" -> ko ? "SLogic 패키지 및 클래스 이름 난독화" : "Obfuscate SLogic class & package names";
+			case "java_path" -> ko ? "자바 실행 경로" : "Java Path";
+			case "jnic_path" -> ko ? "JNIC JAR 경로" : "JNIC JAR Path";
+			case "jnic_xml_title" -> ko ? "JNIC XML 설정 (NecronOBF.xml)" : "JNIC Configuration XML (NecronOBF.xml)";
+			case "btn_load_xml" -> ko ? "XML 불러오기" : "Load XML";
+			case "btn_save_xml" -> ko ? "XML 저장" : "Save XML";
+			case "btn_reset_xml" -> ko ? "기본값 복원" : "Default XML";
 
 			// Bottom Buttons
 			case "btn_import" -> ko ? "프로젝트 불러오기" : "Import Project";

@@ -15,7 +15,14 @@ public record ObfuscationConfig(
 	boolean updateFabricModJson,
 	String seedMode,
 	String packageDepth,
-	String slogicTemplate
+	String slogicTemplate,
+	boolean jnicEnabled,
+	String jnicPath,
+	String javaPath,
+	boolean slogicNameChange,
+	String jnicXml,
+	boolean mixinFixedPathEnabled,
+	String mixinFixedPath
 ) {
 
 	public static ObfuscationConfig defaults(String mainClass) {
@@ -34,7 +41,14 @@ public record ObfuscationConfig(
 			true,
 			"Random",
 			"1 - 3",
-			"Dynamic"
+			"Dynamic",
+			false,
+			"D:\\FROZEN\\Dev Mod\\Obfuscator\\JNIC\\!jnic-3.6.0.jar",
+			"C:\\Program Files\\Java\\jdk-17\\bin\\java.exe",
+			true,
+			JnicManager.DEFAULT_XML,
+			true,
+			"archtang"
 		);
 	}
 
@@ -50,5 +64,17 @@ public record ObfuscationConfig(
 			return "";
 		}
 		return packageRoot.trim().replace('.', '/').replaceAll("^/+|/+$", "");
+	}
+
+	public String mixinBasePackageInternalName() {
+		String base = (mixinFixedPath == null || mixinFixedPath.isBlank()) ? "archtang" : mixinFixedPath.trim().replace('.', '/').replaceAll("^/+|/+$", "");
+		if (base.isEmpty()) {
+			base = "archtang";
+		}
+		String root = packageRootInternalName();
+		if (!root.isEmpty()) {
+			return root + "/" + base;
+		}
+		return base;
 	}
 }

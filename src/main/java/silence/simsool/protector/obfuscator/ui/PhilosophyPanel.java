@@ -35,7 +35,7 @@ public final class PhilosophyPanel extends JPanel {
 		header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
 		header.setOpaque(false);
 
-		JLabel title = new JLabel(ko ? "SilenceProtector의 궁극적인 목표 & 아키텍처" : "SilenceProtector Manifesto & Architecture");
+		JLabel title = new JLabel(ko ? "Necron Obfuscator의 궁극적인 목표 & 아키텍처" : "Necron Obfuscator Manifesto & Architecture");
 		title.setForeground(UITheme.TEXT_PRIMARY);
 		title.setFont(UITheme.FONT_TITLE);
 
@@ -63,11 +63,11 @@ public final class PhilosophyPanel extends JPanel {
 			ko ?
 			"리버싱을 완전히 막는 것은 기술적으로 불가능합니다.\n" +
 			"리버싱을 막기 위해 무거운 VM 가상화나 과도한 기법들을 사용하면 런타임 성능이 심각하게 훼손되지만, 그럼에도 결국 완전한 방어는 할 수 없습니다.\n\n" +
-			"그래서 SilenceProtector는 완전한 소스코드 은닉을 좇기보다는 '코드 재사용을 극도로 어렵게 만드는 데' 목표를 둡니다.\n" +
+			"그래서 Necron Obfuscator는 완전한 소스코드 은닉을 좇기보다는 '코드 재사용을 극도로 어렵게 만드는 데' 목표를 둡니다.\n" +
 			"분석자가 디컴파일을 시도하더라도 원래의 코드 구조와 개발 의도가 완전히 파괴되어 다른 곳에 재사용하거나 수정할 가치가 없게 만들며, 성능 손실은 '제로에 가깝게' 유지합니다." :
 			"Completely preventing reverse engineering is technically impossible on the JVM.\n" +
 			"Forcing heavy VM virtualization or excessive obfuscation severely damages runtime performance, yet still fails to offer absolute protection.\n\n" +
-			"SilenceProtector therefore focuses on making 'code reuse' prohibitively difficult rather than pursuing impossible perfect source hiding.\n" +
+			"Necron Obfuscator therefore focuses on making 'code reuse' prohibitively difficult rather than pursuing impossible perfect source hiding.\n" +
 			"Even if an attacker decompiles the bytecode, the original structure and developer intent are irreversibly broken, making stolen code unusable while keeping performance loss near zero."
 		));
 		list.add(Box.createVerticalStrut(12));
@@ -78,7 +78,7 @@ public final class PhilosophyPanel extends JPanel {
 			ko ? "추천 가이드 (Recommended Architecture)" : "Recommended Architecture & Usage Guide",
 			ko ?
 			"\u2022 다른 난독화기와 레이어로 사용하기 좋습니다:\n" +
-			"  SilenceProtector는 매우 가볍고 빠르므로 다른 고수준 난독화기와 함께 1차 또는 2차 파이프라인 레이어로 조합하여 사용하기에 이상적입니다.\n\n" +
+			"  Necron Obfuscator는 매우 가볍고 빠르므로 다른 고수준 난독화기와 함께 1차 또는 2차 파이프라인 레이어로 조합하여 사용하기에 이상적입니다.\n\n" +
 			"\u2022 SLogic 클래스의 JNI 난독화 권장:\n" +
 			"  SLogic 클래스에는 프로젝트의 모든 복호화 로직이 담겨있기 때문에, 이 클래스를 JNI(C/C++ 네이티브) 난독화를 진행하는 것이 좋습니다. Java 바이트코드 분석만으로 복호화 알고리즘을 확보하는 것을 강력하게 차단합니다.\n\n" +
 			"\u2022 패브릭(Fabric) 모드 완벽 자동 지원:\n" +
@@ -103,7 +103,7 @@ public final class PhilosophyPanel extends JPanel {
 			"- 메서드 분리 기준과 개발자의 코드 작성 스타일\n" +
 			"- 문자열과 숫자 상수의 원래 표현 방식\n" +
 			"- 기능별 클래스 구성 및 논리적 배치\n\n" +
-			"SilenceProtector는 이러한 정보를 최대한 제거하고 재구성하여, 프로그램 동작을 이해하더라도 원본 프로젝트처럼 유지보수 가능한 코드로 복원하는 것을 원천 봉쇄합니다." :
+			"Necron Obfuscator는 이러한 정보를 최대한 제거하고 재구성하여, 프로그램 동작을 이해하더라도 원본 프로젝트처럼 유지보수 가능한 코드로 복원하는 것을 원천 봉쇄합니다." :
 			"Compiled programs only need execution essentials. Source layout, package trees, variable identifiers, stylistic groupings, and literal constants are discarded and irreversibly shuffled, preventing reconstruction into maintainable code."
 		));
 		list.add(Box.createVerticalStrut(12));
@@ -113,7 +113,7 @@ public final class PhilosophyPanel extends JPanel {
 			VectorIcon.Type.LOCK,
 			ko ? "2. 리버싱 방지가 아닌 재사용 방해" : "2. Anti-Reuse over Anti-Reversing",
 			ko ?
-			"SilenceProtector는 '절대로 분석할 수 없는 프로그램'을 목표로 하지 않습니다.\n" +
+			"Necron Obfuscator는 '절대로 분석할 수 없는 프로그램'을 목표로 하지 않습니다.\n" +
 			"Java 프로그램은 결국 JVM에서 실행되어야 하므로 충분한 시간과 권한이 있다면 내부 동작을 분석할 수 있습니다.\n\n" +
 			"> 코드를 분석하는 것은 가능하지만, 분석한 결과를 그대로 가져가서 원본 프로젝트처럼 개발을 이어가기 어렵게 만든다.\n\n" +
 			"공격자가 특정 기능의 작동 원리를 확인하는 것과, 전체 프로젝트를 복구해서 자신의 코드처럼 사용하는 것을 전혀 다른 문제로 분리시킵니다." :
@@ -172,7 +172,7 @@ public final class PhilosophyPanel extends JPanel {
 			"실행 로직은 온전히 존재함 \u2192 기능 분석은 시도 가능 \u2192 그러나 원래 구조와 이름은 완전 소멸 \u2192 " +
 			"상수와 문자열은 비트 연산으로 은닉 \u2192 메서드의 원래 역할을 일일이 재추론해야 함 \u2192 " +
 			"코드를 가져가서 수정하거나 새 기능을 추가하기 불가능\n\n" +
-			"'디컴파일 실패'보다 '디컴파일 후에도 쓸모없는 코드'를 만드는 것이 SilenceProtector의 본질입니다." :
+			"'디컴파일 실패'보다 '디컴파일 후에도 쓸모없는 코드'를 만드는 것이 Necron Obfuscator의 본질입니다." :
 			"Causing decompiler crashes is trivial and easily patched. The real goal is emitting valid Java code where every identifier, relationship, and literal is so dismantled that reusing or modifying it is costlier than rebuilding from scratch."
 		));
 		list.add(Box.createVerticalStrut(12));
@@ -183,17 +183,17 @@ public final class PhilosophyPanel extends JPanel {
 			ko ? "7. 최종 목표 & 핵심 원칙" : "7. Final Objective & Core Creed",
 			ko ?
 			"> \"가볍게 실행되고, 강하게 구조를 파괴하며, 분석 후에도 원본 프로젝트로 되돌리기 어렵게 만든다.\"\n\n" +
-			"SilenceProtector는 단순한 이름 난독화 도구가 아닙니다.\n" +
+			"Necron Obfuscator는 단순한 이름 난독화 도구가 아닙니다.\n" +
 			"바이트코드의 구조적 정보를 최대한 제거하고 코드 재사용을 불가능하게 만드는 현대적인 고성능 Java 보호 솔루션입니다." :
 			"> \"Execute lightly, dismantle structures irreversibly, and render stolen code impossible to repurpose.\"\n\n" +
-			"SilenceProtector is not a simple renamer — it is a zero-overhead Java structural defense engine."
+			"Necron Obfuscator is not a simple renamer — it is a zero-overhead Java structural defense engine."
 		));
 
 		JScrollPane scroll = new JScrollPane(list);
 		scroll.setOpaque(false);
 		scroll.getViewport().setOpaque(false);
 		scroll.setBorder(null);
-		scroll.getVerticalScrollBar().setUnitIncrement(16);
+		silence.simsool.protector.obfuscator.ui.component.ModernScrollBarUI.applyTo(scroll);
 		add(scroll, BorderLayout.CENTER);
 
 		revalidate();

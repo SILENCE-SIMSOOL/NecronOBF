@@ -30,7 +30,14 @@ public final class ProjectManager {
 		boolean updateFabricModJson,
 		String seedMode,
 		String packageDepth,
-		String slogicTemplate
+		String slogicTemplate,
+		boolean jnicEnabled,
+		String jnicPath,
+		String javaPath,
+		boolean slogicNameChange,
+		String jnicXml,
+		boolean mixinFixedPathEnabled,
+		String mixinFixedPath
 	) {}
 
 	public static void exportToFile(Path path, ProjectData data) throws IOException {
@@ -41,6 +48,8 @@ public final class ProjectManager {
 		sb.append("\t\"mainClass\": \"").append(escape(data.mainClass)).append("\",\n");
 		sb.append("\t\"packageRoot\": \"").append(escape(data.packageRoot)).append("\",\n");
 		sb.append("\t\"packageRootEnabled\": ").append(data.packageRootEnabled).append(",\n");
+		sb.append("\t\"mixinFixedPath\": \"").append(escape(data.mixinFixedPath)).append("\",\n");
+		sb.append("\t\"mixinFixedPathEnabled\": ").append(data.mixinFixedPathEnabled).append(",\n");
 		sb.append("\t\"renameClasses\": ").append(data.renameClasses).append(",\n");
 		sb.append("\t\"renameMethods\": ").append(data.renameMethods).append(",\n");
 		sb.append("\t\"renameFields\": ").append(data.renameFields).append(",\n");
@@ -52,7 +61,12 @@ public final class ProjectManager {
 		sb.append("\t\"updateFabricModJson\": ").append(data.updateFabricModJson).append(",\n");
 		sb.append("\t\"seedMode\": \"").append(escape(data.seedMode)).append("\",\n");
 		sb.append("\t\"packageDepth\": \"").append(escape(data.packageDepth)).append("\",\n");
-		sb.append("\t\"slogicTemplate\": \"").append(escape(data.slogicTemplate)).append("\"\n");
+		sb.append("\t\"slogicTemplate\": \"").append(escape(data.slogicTemplate)).append("\",\n");
+		sb.append("\t\"jnicEnabled\": ").append(data.jnicEnabled).append(",\n");
+		sb.append("\t\"jnicPath\": \"").append(escape(data.jnicPath)).append("\",\n");
+		sb.append("\t\"javaPath\": \"").append(escape(data.javaPath)).append("\",\n");
+		sb.append("\t\"slogicNameChange\": ").append(data.slogicNameChange).append(",\n");
+		sb.append("\t\"jnicXml\": \"").append(escape(data.jnicXml)).append("\"\n");
 		sb.append("}\n");
 		Files.writeString(path, sb.toString(), StandardCharsets.UTF_8);
 	}
@@ -78,7 +92,14 @@ public final class ProjectManager {
 			Boolean.parseBoolean(map.getOrDefault("updateFabricModJson", "true")),
 			map.getOrDefault("seedMode", "Random"),
 			map.getOrDefault("packageDepth", "1 - 3"),
-			map.getOrDefault("slogicTemplate", "Dynamic")
+			map.getOrDefault("slogicTemplate", "Dynamic"),
+			Boolean.parseBoolean(map.getOrDefault("jnicEnabled", "false")),
+			map.getOrDefault("jnicPath", "D:\\FROZEN\\Dev Mod\\Obfuscator\\JNIC\\!jnic-3.6.0.jar"),
+			map.getOrDefault("javaPath", "C:\\Program Files\\Java\\jdk-17\\bin\\java.exe"),
+			Boolean.parseBoolean(map.getOrDefault("slogicNameChange", "true")),
+			map.getOrDefault("jnicXml", JnicManager.DEFAULT_XML),
+			Boolean.parseBoolean(map.getOrDefault("mixinFixedPathEnabled", "true")),
+			map.getOrDefault("mixinFixedPath", "archtang")
 		);
 	}
 
@@ -96,11 +117,19 @@ public final class ProjectManager {
 
 	private static String escape(String s) {
 		if (s == null) return "";
-		return s.replace("\\", "\\\\").replace("\"", "\\\"");
+		return s.replace("\\", "\\\\")
+			.replace("\"", "\\\"")
+			.replace("\r", "\\r")
+			.replace("\n", "\\n")
+			.replace("\t", "\\t");
 	}
 
 	private static String unescape(String s) {
 		if (s == null) return "";
-		return s.replace("\\\"", "\"").replace("\\\\", "\\");
+		return s.replace("\\n", "\n")
+			.replace("\\r", "\r")
+			.replace("\\t", "\t")
+			.replace("\\\"", "\"")
+			.replace("\\\\", "\\");
 	}
 }

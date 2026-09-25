@@ -51,11 +51,16 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+
+import silence.simsool.protector.obfuscator.config.JnicManager;
 import silence.simsool.protector.obfuscator.config.ObfuscationConfig;
 import silence.simsool.protector.obfuscator.config.ProjectManager;
 import silence.simsool.protector.obfuscator.core.JarObfuscator;
 import silence.simsool.protector.obfuscator.ui.component.ModernCard;
 import silence.simsool.protector.obfuscator.ui.component.ModernComboBox;
+import silence.simsool.protector.obfuscator.ui.component.ModernScrollBarUI;
 import silence.simsool.protector.obfuscator.ui.component.ToggleSwitch;
 import silence.simsool.protector.obfuscator.ui.component.VectorIcon;
 
@@ -69,9 +74,11 @@ public final class ProtectorFrame extends JFrame {
 	private final JTextField outputField = modernField("Select output JAR file...");
 	private final JTextField mainClassField = modernField("com.example.Main");
 	private final JTextField packageRootField = modernField("silence");
+	private final JTextField mixinFixedPathField = modernField("archtang");
 
 	// Toggle Switches
 	private final ToggleSwitch fabricSwitch = new ToggleSwitch(true);
+	private final ToggleSwitch mixinFixedPathSwitch = new ToggleSwitch(true);
 	private final ToggleSwitch renameClassesSwitch = new ToggleSwitch(true);
 	private final ToggleSwitch protectStringsSwitch = new ToggleSwitch(true);
 	private final ToggleSwitch renameMethodsSwitch = new ToggleSwitch(true);
@@ -81,6 +88,13 @@ public final class ProtectorFrame extends JFrame {
 	private final ToggleSwitch randomizePackagesSwitch = new ToggleSwitch(true);
 	private final ToggleSwitch preserveAnnotationsSwitch = new ToggleSwitch(true);
 	private final ToggleSwitch packageRootSwitch = new ToggleSwitch(true);
+
+	// JNIC & SLogic Controls
+	private final ToggleSwitch jnicSwitch = new ToggleSwitch(false);
+	private final ToggleSwitch slogicNameChangeSwitch = new ToggleSwitch(true);
+	private final JTextField javaPathField = modernField("C:\\Program Files\\Java\\jdk-17\\bin\\java.exe");
+	private final JTextField jnicPathField = modernField("D:\\FROZEN\\Dev Mod\\Obfuscator\\JNIC\\!jnic-3.6.0.jar");
+	private final JTextArea jnicXmlArea = new JTextArea();
 
 	// Custom Dark ComboBoxes
 	private final ModernComboBox<String> seedModeCombo = new ModernComboBox<>(new String[]{"Random", "Fixed Seed", "Timestamp"});
@@ -158,6 +172,7 @@ public final class ProtectorFrame extends JFrame {
 
 		packageRootSwitch.addActionListener(e -> updatePackageRootState());
 		randomizePackagesSwitch.addActionListener(e -> updatePackageRootState());
+		mixinFixedPathSwitch.addActionListener(e -> mixinFixedPathField.setEnabled(mixinFixedPathSwitch.isSelected()));
 		protectButton.addActionListener(e -> startObfuscation());
 
 		I18n.addListener(this::refreshUiTexts);
@@ -211,7 +226,7 @@ public final class ProtectorFrame extends JFrame {
 		left.setOpaque(false);
 
 		VectorIcon shieldLogo = new VectorIcon(VectorIcon.Type.SHIELD, 18, UITheme.ACCENT_CYAN);
-		JLabel brand = new JLabel("SilenceProtector");
+		JLabel brand = new JLabel("Necron Obfuscator");
 		brand.setForeground(UITheme.TEXT_PRIMARY);
 		brand.setFont(UITheme.FONT_HEADER);
 
@@ -474,8 +489,8 @@ public final class ProtectorFrame extends JFrame {
 
 		container.add(headerRow, BorderLayout.NORTH);
 
-		// Center Grid (2 Columns)
-		JPanel grid = new ScrollableGrid(new GridLayout(1, 2, 16, 0));
+		// Center Grid (2 Columns, independent heights)
+		JPanel grid = new ScrollableGrid(new GridBagLayout());
 		grid.setOpaque(false);
 
 		// Left Column: Input/Output + Protection Options
@@ -486,6 +501,8 @@ public final class ProtectorFrame extends JFrame {
 		leftCol.add(createInputOutputCard());
 		leftCol.add(Box.createVerticalStrut(8));
 		leftCol.add(createProtectionOptionsCard());
+		leftCol.add(Box.createVerticalStrut(8));
+		leftCol.add(createJnicCard());
 
 		// Right Column: Main Class / Fabric + Package Root + Randomization / Logic
 		JPanel rightCol = new JPanel();
@@ -498,16 +515,27 @@ public final class ProtectorFrame extends JFrame {
 		rightCol.add(Box.createVerticalStrut(8));
 		rightCol.add(createRandomizationCard());
 
-		grid.add(leftCol);
-		grid.add(rightCol);
+		GridBagConstraints gc = new GridBagConstraints();
+		gc.fill = GridBagConstraints.HORIZONTAL;
+		gc.anchor = GridBagConstraints.NORTH;
+		gc.weightx = 0.5;
+		gc.weighty = 0.0;
+		gc.gridy = 0;
+
+		gc.gridx = 0;
+		gc.insets = new Insets(0, 0, 0, 8);
+		grid.add(leftCol, gc);
+
+		gc.gridx = 1;
+		gc.insets = new Insets(0, 8, 0, 0);
+		grid.add(rightCol, gc);
 
 		JScrollPane scrollPane = new JScrollPane(grid);
 		scrollPane.setOpaque(false);
 		scrollPane.getViewport().setOpaque(false);
 		scrollPane.setBorder(null);
 		scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-		scrollPane.getVerticalScrollBar().setUnitIncrement(14);
-		scrollPane.getVerticalScrollBar().setPreferredSize(new Dimension(4, 0));
+		ModernScrollBarUI.applyTo(scrollPane);
 
 		container.add(scrollPane, BorderLayout.CENTER);
 		container.add(createBottomBar(), BorderLayout.SOUTH);
@@ -572,6 +600,17 @@ public final class ProtectorFrame extends JFrame {
 		);
 		content.add(toggleRow, c);
 
+		c.gridy = 3; c.insets = new Insets(8, 0, 0, 0);
+		JPanel mixinRow = createToggleRow(
+			mixinFixedPathSwitch,
+			I18n.get("mixin_fixed_path"),
+			I18n.get("mixin_fixed_path_sub")
+		);
+		content.add(mixinRow, c);
+
+		c.gridy = 4; c.insets = new Insets(4, 0, 0, 0);
+		content.add(mixinFixedPathField, c);
+
 		card.add(content, BorderLayout.CENTER);
 		return card;
 	}
@@ -593,6 +632,148 @@ public final class ProtectorFrame extends JFrame {
 
 		card.add(grid, BorderLayout.CENTER);
 		return card;
+	}
+
+	private ModernCard createJnicCard() {
+		ModernCard card = new ModernCard(VectorIcon.Type.SHIELD, I18n.get("card_jnic"), I18n.get("card_jnic_sub"));
+
+		JPanel content = new JPanel();
+		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+		content.setOpaque(false);
+
+		// Option Toggles Grid
+		JPanel togglesGrid = new JPanel(new GridLayout(1, 2, 12, 10));
+		togglesGrid.setOpaque(false);
+		togglesGrid.add(createOptionItem(VectorIcon.Type.CODE, I18n.get("opt_jnic"), I18n.get("opt_jnic_sub"), jnicSwitch));
+		togglesGrid.add(createOptionItem(VectorIcon.Type.SHUFFLE, I18n.get("opt_slogic_rename"), I18n.get("opt_slogic_rename_sub"), slogicNameChangeSwitch));
+		content.add(togglesGrid);
+		content.add(Box.createVerticalStrut(10));
+
+		// Path fields
+		JPanel pathsPanel = new JPanel(new GridBagLayout());
+		pathsPanel.setOpaque(false);
+		GridBagConstraints c = new GridBagConstraints();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.insets = new Insets(2, 0, 2, 0);
+
+		// Java Path
+		c.gridx = 0; c.gridy = 0; c.weightx = 1.0; c.gridwidth = 2;
+		pathsPanel.add(createFieldLabel(I18n.get("java_path")), c);
+
+		c.gridy = 1; c.gridwidth = 1;
+		pathsPanel.add(javaPathField, c);
+
+		c.gridx = 1; c.weightx = 0; c.insets = new Insets(2, 6, 2, 0);
+		OutlineButton javaBrowse = new OutlineButton(VectorIcon.Type.FOLDER, I18n.get("browse"));
+		javaBrowse.addActionListener(e -> chooseJavaExecutable());
+		pathsPanel.add(javaBrowse, c);
+
+		// JNIC JAR Path
+		c.gridx = 0; c.gridy = 2; c.weightx = 1.0; c.gridwidth = 2; c.insets = new Insets(6, 0, 2, 0);
+		pathsPanel.add(createFieldLabel(I18n.get("jnic_path")), c);
+
+		c.gridy = 3; c.gridwidth = 1; c.insets = new Insets(2, 0, 2, 0);
+		pathsPanel.add(jnicPathField, c);
+
+		c.gridx = 1; c.weightx = 0; c.insets = new Insets(2, 6, 2, 0);
+		OutlineButton jnicBrowse = new OutlineButton(VectorIcon.Type.FOLDER, I18n.get("browse"));
+		jnicBrowse.addActionListener(e -> chooseJnicJar());
+		pathsPanel.add(jnicBrowse, c);
+
+		content.add(pathsPanel);
+		content.add(Box.createVerticalStrut(10));
+
+		// XML Header & Action Buttons
+		JPanel xmlHeaderRow = new JPanel(new BorderLayout());
+		xmlHeaderRow.setOpaque(false);
+		JLabel xmlTitle = createFieldLabel(I18n.get("jnic_xml_title"));
+		xmlHeaderRow.add(xmlTitle, BorderLayout.WEST);
+
+		JPanel xmlButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+		xmlButtons.setOpaque(false);
+		OutlineButton loadXmlBtn = new OutlineButton(VectorIcon.Type.DOWNLOAD, I18n.get("btn_load_xml"));
+		OutlineButton saveXmlBtn = new OutlineButton(VectorIcon.Type.DISK, I18n.get("btn_save_xml"));
+		OutlineButton resetXmlBtn = new OutlineButton(VectorIcon.Type.SHUFFLE, I18n.get("btn_reset_xml"));
+
+		loadXmlBtn.addActionListener(e -> {
+			syncLoadXml();
+			log("NecronOBF.xml loaded successfully.");
+		});
+		saveXmlBtn.addActionListener(e -> {
+			syncSaveXml();
+			log("NecronOBF.xml saved successfully.");
+		});
+		resetXmlBtn.addActionListener(e -> jnicXmlArea.setText(JnicManager.DEFAULT_XML));
+
+		xmlButtons.add(loadXmlBtn);
+		xmlButtons.add(saveXmlBtn);
+		xmlButtons.add(resetXmlBtn);
+		xmlHeaderRow.add(xmlButtons, BorderLayout.EAST);
+		content.add(xmlHeaderRow);
+		content.add(Box.createVerticalStrut(6));
+
+		// XML Editor Area
+		jnicXmlArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+		jnicXmlArea.setBackground(new Color(11, 16, 26));
+		jnicXmlArea.setForeground(UITheme.TEXT_PRIMARY);
+		jnicXmlArea.setCaretColor(UITheme.ACCENT_CYAN);
+		jnicXmlArea.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+		jnicXmlArea.setTabSize(4);
+
+		JScrollPane xmlScroll = new JScrollPane(jnicXmlArea);
+		xmlScroll.setOpaque(false);
+		xmlScroll.getViewport().setOpaque(false);
+		xmlScroll.setBorder(null);
+		xmlScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+		xmlScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		ModernScrollBarUI.applyTo(xmlScroll);
+
+		JPanel xmlEditorContainer = new JPanel(new BorderLayout()) {
+			{ setOpaque(false); }
+			@Override
+			protected void paintComponent(Graphics g) {
+				Graphics2D g2 = (Graphics2D) g.create();
+				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+				g2.setColor(new Color(11, 16, 26));
+				g2.fillRoundRect(0, 0, getWidth(), getHeight(), UITheme.RADIUS_INPUT, UITheme.RADIUS_INPUT);
+				g2.setColor(UITheme.BORDER_CARD);
+				g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, UITheme.RADIUS_INPUT, UITheme.RADIUS_INPUT);
+				g2.dispose();
+				super.paintComponent(g);
+			}
+		};
+		xmlEditorContainer.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+		xmlEditorContainer.setPreferredSize(new Dimension(Short.MAX_VALUE, 170));
+		xmlEditorContainer.setMinimumSize(new Dimension(100, 150));
+		xmlEditorContainer.setMaximumSize(new Dimension(Short.MAX_VALUE, 260));
+		xmlEditorContainer.add(xmlScroll, BorderLayout.CENTER);
+		content.add(xmlEditorContainer);
+
+		card.add(content, BorderLayout.CENTER);
+		return card;
+	}
+
+	private void syncLoadXml() {
+		try {
+			String xml = JnicManager.ensureAndLoadXml(jnicPathField.getText().trim());
+			jnicXmlArea.setText(xml);
+		} catch (Exception ex) {
+			if (jnicXmlArea.getText().isBlank()) {
+				jnicXmlArea.setText(JnicManager.DEFAULT_XML);
+			}
+		}
+	}
+
+	private void syncSaveXml() {
+		try {
+			String text = jnicXmlArea.getText();
+			if (text.isBlank()) {
+				text = JnicManager.DEFAULT_XML;
+			}
+			JnicManager.saveXml(jnicPathField.getText().trim(), text);
+		} catch (Exception ex) {
+			log("Failed to save NecronOBF.xml: " + ex.getMessage());
+		}
 	}
 
 	private ModernCard createPackageRootCard() {
@@ -764,7 +945,14 @@ public final class ProtectorFrame extends JFrame {
 					fabricSwitch.isSelected(),
 					(String) seedModeCombo.getSelectedItem(),
 					(String) packageDepthCombo.getSelectedItem(),
-					(String) slogicTemplateCombo.getSelectedItem()
+					(String) slogicTemplateCombo.getSelectedItem(),
+					jnicSwitch.isSelected(),
+					jnicPathField.getText().trim(),
+					javaPathField.getText().trim(),
+					slogicNameChangeSwitch.isSelected(),
+					jnicXmlArea.getText(),
+					mixinFixedPathSwitch.isSelected(),
+					mixinFixedPathField.getText().trim()
 				);
 				ProjectManager.exportToFile(file.toPath(), data);
 				log("Project exported successfully to: " + file.getAbsolutePath());
@@ -797,11 +985,20 @@ public final class ProtectorFrame extends JFrame {
 				randomizedSLogicSwitch.setSelected(data.randomizedSLogic());
 				preserveAnnotationsSwitch.setSelected(data.preserveAnnotations());
 				fabricSwitch.setSelected(data.updateFabricModJson());
+				mixinFixedPathSwitch.setSelected(data.mixinFixedPathEnabled());
+				mixinFixedPathField.setText(data.mixinFixedPath());
+				mixinFixedPathField.setEnabled(data.mixinFixedPathEnabled());
 				seedModeCombo.setSelectedItem(data.seedMode());
 				packageDepthCombo.setSelectedItem(data.packageDepth());
 				slogicTemplateCombo.setSelectedItem(data.slogicTemplate());
+				jnicSwitch.setSelected(data.jnicEnabled());
+				jnicPathField.setText(data.jnicPath());
+				javaPathField.setText(data.javaPath());
+				slogicNameChangeSwitch.setSelected(data.slogicNameChange());
+				jnicXmlArea.setText(data.jnicXml());
 
 				updatePackageRootState();
+				syncSaveXml();
 				saveSettings();
 				log("Project imported successfully from: " + file.getAbsolutePath());
 			} catch (Exception ex) {
@@ -824,6 +1021,7 @@ public final class ProtectorFrame extends JFrame {
 		scroll.setOpaque(false);
 		scroll.getViewport().setOpaque(false);
 		scroll.setBorder(null);
+		ModernScrollBarUI.applyTo(scroll);
 
 		JPanel roundedContainer = new JPanel(new BorderLayout()) {
 			{ setOpaque(false); }
@@ -983,12 +1181,14 @@ public final class ProtectorFrame extends JFrame {
 		mainCardContainer.repaint();
 	}
 
+	private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
+
 	private void startObfuscation() {
 		String input = inputField.getText().trim();
 		String output = outputField.getText().trim();
 
 		if (input.isEmpty() || output.isEmpty()) {
-			log("Input and output JAR are required.");
+			log("[ERROR] Input and output JAR paths are required.");
 			cardLayout.show(mainCardContainer, "OUTPUT");
 			for (SidebarButton b : navButtons) b.setActive(b.getTextKey().equals("nav_output"));
 			return;
@@ -996,23 +1196,54 @@ public final class ProtectorFrame extends JFrame {
 
 		String packageRoot = packageRootField.getText().trim();
 		if (packageRootSwitch.isSelected() && !isValidPackageRoot(packageRoot)) {
-			log("Package root must contain 1-3 valid Java package segments.");
+			log("[ERROR] Package root must contain 1-3 valid Java package segments.");
 			cardLayout.show(mainCardContainer, "OUTPUT");
 			for (SidebarButton b : navButtons) b.setActive(b.getTextKey().equals("nav_output"));
 			return;
 		}
 
+		if (jnicSwitch.isSelected()) {
+			String jPath = javaPathField.getText().trim();
+			String jnicP = jnicPathField.getText().trim();
+			if (jPath.isEmpty() || !java.nio.file.Files.exists(java.nio.file.Path.of(jPath))) {
+				log("[ERROR] Java executable path does not exist: " + jPath);
+				cardLayout.show(mainCardContainer, "OUTPUT");
+				for (SidebarButton b : navButtons) b.setActive(b.getTextKey().equals("nav_output"));
+				return;
+			}
+			if (jnicP.isEmpty() || !java.nio.file.Files.exists(java.nio.file.Path.of(jnicP))) {
+				log("[ERROR] JNIC JAR path does not exist: " + jnicP);
+				cardLayout.show(mainCardContainer, "OUTPUT");
+				for (SidebarButton b : navButtons) b.setActive(b.getTextKey().equals("nav_output"));
+				return;
+			}
+		}
+
 		saveSettings();
+		syncLoadXml();
+
 		ObfuscationConfig config = currentConfig();
 		protectButton.setEnabled(false);
 		progressBar.setVisible(true);
 		progressBar.setIndeterminate(true);
 		logArea.setText("");
-		log("Initializing Randomized Protection Engine...");
-		log("Input: " + input);
-		log("Output: " + output);
-		log("Seed Mode: " + config.seedMode() + " | Package Depth: " + config.packageDepth() + " | SLogic Template: " + config.slogicTemplate());
-		log("Generating polymorphic SLogic logic & cryptographic rules...");
+
+		log("================================================================================");
+		log(" NECRON OBFUSCATION ENGINE");
+		log("================================================================================");
+		log("  • Input JAR        : " + input);
+		log("  • Output JAR       : " + output);
+		log("  • Seed Mode        : " + config.seedMode());
+		log("  • Package Depth    : " + config.packageDepth());
+		log("  • SLogic Template  : " + config.slogicTemplate());
+		log("  • Mixin Fixed Path : " + (config.mixinFixedPathEnabled() ? "ENABLED (" + config.mixinBasePackageInternalName() + ")" : "DISABLED"));
+		log("  • JNIC Obfuscation : " + (config.jnicEnabled() ? "ENABLED" : "DISABLED"));
+		if (config.jnicEnabled()) {
+			log("    ├─ Java Path     : " + config.javaPath());
+			log("    └─ JNIC JAR Path : " + config.jnicPath());
+		}
+		log("  • SLogic Rename    : " + (config.slogicNameChange() ? "ENABLED" : "DISABLED"));
+		log("--------------------------------------------------------------------------------");
 
 		new SwingWorker<Void, Void>() {
 			private Exception error;
@@ -1020,7 +1251,7 @@ public final class ProtectorFrame extends JFrame {
 			@Override
 			protected Void doInBackground() {
 				try {
-					new JarObfuscator().obfuscate(Path.of(input), Path.of(output), config);
+					new JarObfuscator().obfuscate(Path.of(input), Path.of(output), config, ProtectorFrame.this::log);
 				} catch (Exception e) {
 					error = e;
 				}
@@ -1032,13 +1263,15 @@ public final class ProtectorFrame extends JFrame {
 				protectButton.setEnabled(true);
 				progressBar.setIndeterminate(false);
 				progressBar.setVisible(false);
+				log("--------------------------------------------------------------------------------");
 				if (error == null) {
-					log("Protection completed successfully!");
-					log("Output written to: " + output);
+					log("[SUCCESS] Protection completed successfully!");
+					log("[OUTPUT]  Written to: " + output);
 				} else {
-					log("Failed: " + error.getMessage());
+					log("[ERROR]   Protection failed: " + error.getMessage());
 					error.printStackTrace();
 				}
+				log("================================================================================");
 				cardLayout.show(mainCardContainer, "OUTPUT");
 				for (SidebarButton b : navButtons) b.setActive(b.getTextKey().equals("nav_output"));
 			}
@@ -1061,7 +1294,14 @@ public final class ProtectorFrame extends JFrame {
 			fabricSwitch.isSelected(),
 			(String) seedModeCombo.getSelectedItem(),
 			(String) packageDepthCombo.getSelectedItem(),
-			(String) slogicTemplateCombo.getSelectedItem()
+			(String) slogicTemplateCombo.getSelectedItem(),
+			jnicSwitch.isSelected(),
+			jnicPathField.getText().trim(),
+			javaPathField.getText().trim(),
+			slogicNameChangeSwitch.isSelected(),
+			jnicXmlArea.getText(),
+			mixinFixedPathSwitch.isSelected(),
+			mixinFixedPathField.getText().trim()
 		);
 	}
 
@@ -1078,11 +1318,19 @@ public final class ProtectorFrame extends JFrame {
 		packageRootSwitch.setSelected(PREFS.getBoolean("packageRootEnabled", true));
 		packageRootField.setText(PREFS.get("packageRoot", "silence"));
 		fabricSwitch.setSelected(PREFS.getBoolean("updateFabricModJson", true));
+		mixinFixedPathSwitch.setSelected(PREFS.getBoolean("mixinFixedPathEnabled", true));
+		mixinFixedPathField.setText(PREFS.get("mixinFixedPath", "archtang"));
+		mixinFixedPathField.setEnabled(mixinFixedPathSwitch.isSelected());
 		randomizedSLogicSwitch.setSelected(PREFS.getBoolean("randomizedSLogic", true));
 		preserveAnnotationsSwitch.setSelected(PREFS.getBoolean("preserveAnnotations", true));
 		seedModeCombo.setSelectedItem(PREFS.get("seedMode", "Random"));
 		packageDepthCombo.setSelectedItem(PREFS.get("packageDepth", "1 - 3"));
 		slogicTemplateCombo.setSelectedItem(PREFS.get("slogicTemplate", "Dynamic"));
+		jnicSwitch.setSelected(PREFS.getBoolean("jnicEnabled", false));
+		slogicNameChangeSwitch.setSelected(PREFS.getBoolean("slogicNameChange", true));
+		javaPathField.setText(PREFS.get("javaPath", "C:\\Program Files\\Java\\jdk-17\\bin\\java.exe"));
+		jnicPathField.setText(PREFS.get("jnicPath", "D:\\FROZEN\\Dev Mod\\Obfuscator\\JNIC\\!jnic-3.6.0.jar"));
+		syncLoadXml();
 	}
 
 	private void saveSettings() {
@@ -1098,11 +1346,18 @@ public final class ProtectorFrame extends JFrame {
 		PREFS.putBoolean("packageRootEnabled", packageRootSwitch.isSelected());
 		PREFS.put("packageRoot", packageRootField.getText().trim());
 		PREFS.putBoolean("updateFabricModJson", fabricSwitch.isSelected());
+		PREFS.putBoolean("mixinFixedPathEnabled", mixinFixedPathSwitch.isSelected());
+		PREFS.put("mixinFixedPath", mixinFixedPathField.getText().trim());
 		PREFS.putBoolean("randomizedSLogic", randomizedSLogicSwitch.isSelected());
 		PREFS.putBoolean("preserveAnnotations", preserveAnnotationsSwitch.isSelected());
 		PREFS.put("seedMode", (String) seedModeCombo.getSelectedItem());
 		PREFS.put("packageDepth", (String) packageDepthCombo.getSelectedItem());
 		PREFS.put("slogicTemplate", (String) slogicTemplateCombo.getSelectedItem());
+		PREFS.putBoolean("jnicEnabled", jnicSwitch.isSelected());
+		PREFS.putBoolean("slogicNameChange", slogicNameChangeSwitch.isSelected());
+		PREFS.put("javaPath", javaPathField.getText().trim());
+		PREFS.put("jnicPath", jnicPathField.getText().trim());
+		syncSaveXml();
 	}
 
 	private void updatePackageRootState() {
@@ -1129,7 +1384,34 @@ public final class ProtectorFrame extends JFrame {
 	}
 
 	private void log(String text) {
-		logArea.append(text + System.lineSeparator());
+		String time = LocalTime.now().format(TIME_FORMAT);
+		logArea.append("[" + time + "] " + text + System.lineSeparator());
+		logArea.setCaretPosition(logArea.getDocument().getLength());
+	}
+
+	private void chooseJavaExecutable() {
+		JFileChooser chooser = new JFileChooser();
+		chooser.setDialogTitle("Select Java Executable (java.exe)");
+		String current = javaPathField.getText().trim();
+		if (!current.isBlank()) {
+			File f = new File(current);
+			if (f.exists()) {
+				chooser.setSelectedFile(f);
+			}
+		}
+		chooser.setFileFilter(new FileNameExtensionFilter("Java Executable (*.exe, java)", "exe", ""));
+		if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+			javaPathField.setText(chooser.getSelectedFile().getAbsolutePath());
+		}
+	}
+
+	private void chooseJnicJar() {
+		JFileChooser chooser = jarChooser(jnicPathField.getText());
+		chooser.setDialogTitle("Select JNIC JAR");
+		if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+			jnicPathField.setText(chooser.getSelectedFile().getAbsolutePath());
+			syncLoadXml();
+		}
 	}
 
 	private void chooseInput() {

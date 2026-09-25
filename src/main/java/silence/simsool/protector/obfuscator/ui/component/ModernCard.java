@@ -1,6 +1,7 @@
 package silence.simsool.protector.obfuscator.ui.component;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -74,5 +75,10 @@ public final class ModernCard extends JPanel {
 
 		g2.dispose();
 		super.paintComponent(g);
+	}
+
+	@Override
+	public Dimension getMaximumSize() {
+		return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
 	}
 }

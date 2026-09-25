@@ -1,6 +1,8 @@
 package silence.simsool.protector.obfuscator.core;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,17 +13,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.Consumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.ClassRemapper;
+import org.objectweb.asm.commons.Remapper;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -38,42 +41,214 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import silence.simsool.protector.obfuscator.config.JnicManager;
 import silence.simsool.protector.obfuscator.config.ObfuscationConfig;
 
 public final class JarObfuscator {
 
 	private static final String LOGIC_OWNER = "silence/simsool/protector/SLogic";
 	private static final String STRING_CACHE_FIELD = "$sp$c";
-	private static final Pattern MIXIN_PACKAGE = Pattern.compile("\\\"package\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
 
 	public void obfuscate(Path input, Path output, ObfuscationConfig config) throws Exception {
+		obfuscate(input, output, config, msg -> {});
+	}
+
+	public void obfuscate(Path input, Path output, ObfuscationConfig config, Consumer<String> logger) throws Exception {
 		Random random = createRandom(config.seedMode());
+		boolean useJnic = config.jnicEnabled();
 
-		Map<String, byte[]> entries = readJar(input);
-		NameObfuscator nameObfuscator = new NameObfuscator(random);
-		entries = nameObfuscator.remap(entries, config);
-		entries = updateMetadata(entries, nameObfuscator.classMappings(), config);
+		Path stage1Output = useJnic ? Files.createTempFile("necron_stage1_", ".jar") : output;
+		Path jnicOutput = null;
 
-		Random slogicRandom = config.randomizedSLogic() ? random : new Random(0x511EACE20260919L);
-		DynamicSLogic dynamicSLogic = new DynamicSLogic(LOGIC_OWNER, slogicRandom, config.slogicTemplate());
+		try {
+			logger.accept("[1/3] Starting Necron Bytecode Obfuscation...");
+			Map<String, byte[]> entries = readJar(input);
+			NameObfuscator nameObfuscator = new NameObfuscator(random);
+			entries = nameObfuscator.remap(entries, config);
+			entries = updateMetadata(entries, nameObfuscator, config);
 
-		Map<String, byte[]> transformed = new LinkedHashMap<>();
+			String currentLogicOwner = (!useJnic && config.slogicNameChange()) ? nameObfuscator.mappedLogicOwner() : LOGIC_OWNER;
+			if (!useJnic && config.slogicNameChange()) {
+				logger.accept("  - SLogic Renamed: " + currentLogicOwner);
+			}
+
+			Random slogicRandom = config.randomizedSLogic() ? random : new Random(0x511EACE20260919L);
+			DynamicSLogic dynamicSLogic = new DynamicSLogic(currentLogicOwner, slogicRandom, config.slogicTemplate());
+
+			Map<String, byte[]> transformed = new LinkedHashMap<>();
+			for (Map.Entry<String, byte[]> entry : entries.entrySet()) {
+				String name = entry.getKey();
+				byte[] data = entry.getValue();
+
+				if (!name.endsWith(".class") || name.equals(currentLogicOwner + ".class") || name.equals(LOGIC_OWNER + ".class") || name.equals("module-info.class")) {
+					transformed.put(name, data);
+					continue;
+				}
+
+				String internalName = name.substring(0, name.length() - 6);
+				if (nameObfuscator.isRemappedMixinClass(internalName)) {
+					transformed.put(name, data);
+					continue;
+				}
+
+				transformed.put(name, transformClass(data, entries, config, dynamicSLogic, random, currentLogicOwner));
+			}
+
+			if (config.protectStrings() || config.protectNumbers()) {
+				transformed.put(currentLogicOwner + ".class", dynamicSLogic.generateClassBytes());
+			}
+			writeJar(stage1Output, transformed);
+			logger.accept("  - Transformed classes: " + transformed.size());
+
+			if (useJnic) {
+				logger.accept("[2/3] Executing JNIC Native Compiler...");
+				jnicOutput = Files.createTempFile("necron_jnic_", ".jar");
+				Path javaPath = Path.of(config.javaPath());
+				Path jnicJarPath = Path.of(config.jnicPath());
+				Path xmlPath = JnicManager.resolveXmlPath(config.jnicPath());
+
+				executeJnic(javaPath, jnicJarPath, stage1Output, jnicOutput, xmlPath, logger);
+				logger.accept("  - JNIC Compilation succeeded.");
+
+				if (config.slogicNameChange()) {
+					logger.accept("[3/3] Performing Post-JNIC SLogic Name Obfuscation...");
+					remapSLogicInJar(jnicOutput, output, config, random, logger);
+					logger.accept("  - SLogic Name Change successfully applied.");
+				} else {
+					logger.accept("[3/3] SLogic Name Change is disabled. Finalizing output...");
+					if (output.getParent() != null) {
+						Files.createDirectories(output.getParent());
+					}
+					Files.copy(jnicOutput, output, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+				}
+			}
+		} finally {
+			if (useJnic) {
+				try {
+					Files.deleteIfExists(stage1Output);
+				} catch (Exception ignored) {}
+				if (jnicOutput != null) {
+					try {
+						Files.deleteIfExists(jnicOutput);
+					} catch (Exception ignored) {}
+				}
+			}
+		}
+	}
+
+	private void executeJnic(Path javaPath, Path jnicJar, Path inputJar, Path outputJar, Path xmlPath, Consumer<String> logger) throws Exception {
+		if (!Files.exists(javaPath)) {
+			throw new IOException("Java executable not found at: " + javaPath);
+		}
+		if (!Files.exists(jnicJar)) {
+			throw new IOException("JNIC JAR file not found at: " + jnicJar);
+		}
+		if (!Files.exists(xmlPath)) {
+			throw new IOException("JNIC configuration XML not found at: " + xmlPath);
+		}
+
+		Path workDir = jnicJar.getParent() != null ? jnicJar.getParent() : Path.of(".");
+		List<String> command = List.of(
+			javaPath.toAbsolutePath().toString(),
+			"-Xmx2G",
+			"-Xmx4G",
+			"-jar",
+			jnicJar.toAbsolutePath().toString(),
+			inputJar.toAbsolutePath().toString(),
+			outputJar.toAbsolutePath().toString(),
+			xmlPath.toAbsolutePath().toString()
+		);
+
+		logger.accept("  - Command: " + String.join(" ", command));
+
+		ProcessBuilder pb = new ProcessBuilder(command);
+		pb.directory(workDir.toFile());
+		pb.redirectErrorStream(true);
+
+		Process process = pb.start();
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				logger.accept("    | " + line);
+			}
+		}
+
+		int exitCode = process.waitFor();
+		if (exitCode != 0) {
+			throw new RuntimeException("JNIC execution failed with exit code: " + exitCode);
+		}
+		if (!Files.exists(outputJar) || Files.size(outputJar) == 0) {
+			throw new IOException("JNIC did not produce a valid output JAR at: " + outputJar);
+		}
+	}
+
+	private void remapSLogicInJar(Path inputJar, Path outputJar, ObfuscationConfig config, Random random, Consumer<String> logger) throws Exception {
+		Map<String, byte[]> entries = readJar(inputJar);
+
+		String targetPackage = config.packageRootInternalName();
+		if (config.randomizePackages()) {
+			int minD = 1, maxD = 3;
+			if ("Flat".equals(config.packageDepth())) {
+				minD = 1; maxD = 1;
+			} else if ("2 - 4".equals(config.packageDepth())) {
+				minD = 2; maxD = 4;
+			}
+			int targetDepth = minD + random.nextInt(maxD - minD + 1);
+			StringBuilder sb = new StringBuilder(targetPackage);
+			for (int i = 0; i < targetDepth; i++) {
+				if (!sb.isEmpty()) sb.append('/');
+				sb.append(randomAlphaString(random, 2, 2));
+			}
+			targetPackage = sb.toString();
+		}
+		String newSimpleName = randomAlphaString(random, 1, 2);
+		String newLogicOwner = targetPackage.isEmpty() ? newSimpleName : targetPackage + "/" + newSimpleName;
+
+		logger.accept("  - Remapping SLogic [" + LOGIC_OWNER + "] -> [" + newLogicOwner + "]");
+
+		Map<String, byte[]> remappedEntries = new LinkedHashMap<>();
+		Remapper remapper = new Remapper() {
+			@Override
+			public String map(String internalName) {
+				if (internalName.equals(LOGIC_OWNER)) {
+					return newLogicOwner;
+				}
+				return internalName;
+			}
+		};
+
 		for (Map.Entry<String, byte[]> entry : entries.entrySet()) {
 			String name = entry.getKey();
 			byte[] data = entry.getValue();
 
-			if (!name.endsWith(".class") || name.equals(LOGIC_OWNER + ".class") || name.equals("module-info.class")) {
-				transformed.put(name, data);
-				continue;
+			if (name.endsWith(".class")) {
+				ClassReader cr = new ClassReader(data);
+				ClassWriter cw = new ClassWriter(0);
+				cr.accept(new ClassRemapper(cw, remapper), 0);
+				byte[] transformed = cw.toByteArray();
+
+				String oldInternal = name.substring(0, name.length() - 6);
+				String newInternal = remapper.map(oldInternal);
+				remappedEntries.put(newInternal + ".class", transformed);
+			} else if (name.equals("fabric.mod.json") && config.updateFabricModJson()) {
+				String json = new String(data, StandardCharsets.UTF_8);
+				json = json.replace(LOGIC_OWNER.replace('/', '.'), newLogicOwner.replace('/', '.'));
+				remappedEntries.put(name, json.getBytes(StandardCharsets.UTF_8));
+			} else {
+				remappedEntries.put(name, data);
 			}
-
-			transformed.put(name, transformClass(data, entries, config, dynamicSLogic, random));
 		}
 
-		if (config.protectStrings() || config.protectNumbers()) {
-			transformed.put(LOGIC_OWNER + ".class", dynamicSLogic.generateClassBytes());
+		writeJar(outputJar, remappedEntries);
+	}
+
+	private String randomAlphaString(Random random, int minLength, int maxLength) {
+		int length = minLength + random.nextInt(maxLength - minLength + 1);
+		StringBuilder sb = new StringBuilder(length);
+		for (int i = 0; i < length; i++) {
+			sb.append((char) ('a' + random.nextInt(26)));
 		}
-		writeJar(output, transformed);
+		return sb.toString();
 	}
 
 	private Random createRandom(String seedMode) {
@@ -86,8 +261,9 @@ public final class JarObfuscator {
 		}
 	}
 
-	private Map<String, byte[]> updateMetadata(Map<String, byte[]> entries, Map<String, String> classMappings, ObfuscationConfig config) {
+	private Map<String, byte[]> updateMetadata(Map<String, byte[]> entries, NameObfuscator nameObfuscator, ObfuscationConfig config) {
 		Map<String, byte[]> result = new LinkedHashMap<>(entries);
+		Map<String, String> classMappings = nameObfuscator.classMappings();
 
 		byte[] fabricData = result.get("fabric.mod.json");
 		if (fabricData != null && config.updateFabricModJson()) {
@@ -98,52 +274,7 @@ public final class JarObfuscator {
 			result.put("fabric.mod.json", json.getBytes(StandardCharsets.UTF_8));
 		}
 
-		for (Map.Entry<String, byte[]> entry : new ArrayList<>(result.entrySet())) {
-			if (!entry.getKey().endsWith(".json") || !entry.getKey().contains("mixin")) {
-				continue;
-			}
-
-			String json = new String(entry.getValue(), StandardCharsets.UTF_8);
-			Matcher matcher = MIXIN_PACKAGE.matcher(json);
-			if (!matcher.find()) {
-				continue;
-			}
-
-			String oldPackageDot = matcher.group(1);
-			String oldPackage = oldPackageDot.replace('.', '/');
-			String newPackage = null;
-
-			for (Map.Entry<String, String> mapping : classMappings.entrySet()) {
-				if (!mapping.getKey().startsWith(oldPackage + "/")) {
-					continue;
-				}
-				String mapped = mapping.getValue();
-				int slash = mapped.lastIndexOf('/');
-				if (slash > 0) {
-					newPackage = mapped.substring(0, slash);
-					break;
-				}
-			}
-
-			if (newPackage == null) {
-				continue;
-			}
-
-			for (Map.Entry<String, String> mapping : classMappings.entrySet()) {
-				String oldName = mapping.getKey();
-				if (!oldName.startsWith(oldPackage + "/")) {
-					continue;
-				}
-				String oldRelative = oldName.substring(oldPackage.length() + 1).replace('/', '.');
-				String newName = mapping.getValue();
-				String newRelative = newName.substring(newName.lastIndexOf('/') + 1);
-				json = json.replace("\"" + oldRelative + "\"", "\"" + newRelative + "\"");
-				json = json.replace(oldName.replace('/', '.'), newName.replace('/', '.'));
-			}
-
-			json = json.replace(oldPackageDot, newPackage.replace('/', '.'));
-			result.put(entry.getKey(), json.getBytes(StandardCharsets.UTF_8));
-		}
+		nameObfuscator.updateMixinConfigs(result);
 
 		String configuredMain = config.mainClassInternalName();
 		if (configuredMain != null && !classMappings.containsKey(configuredMain)) {
@@ -153,11 +284,10 @@ public final class JarObfuscator {
 		return result;
 	}
 
-	private byte[] transformClass(byte[] input, Map<String, byte[]> entries, ObfuscationConfig config, DynamicSLogic dynamicSLogic, Random random) {
+	private byte[] transformClass(byte[] input, Map<String, byte[]> entries, ObfuscationConfig config, DynamicSLogic dynamicSLogic, Random random, String logicOwner) {
 		ClassNode classNode = new ClassNode();
 		new ClassReader(input).accept(classNode, 0);
 
-		// Strip debug & source metadata
 		classNode.sourceFile = null;
 		classNode.sourceDebug = null;
 
@@ -188,17 +318,17 @@ public final class JarObfuscator {
 						method.instructions.insertBefore(insn, createStringLoad(classNode.name, field));
 						method.instructions.remove(insn);
 					} else if (config.protectNumbers() && constant instanceof Integer value && shouldProtectInt(value)) {
-						replaceInt(method, insn, value, dynamicSLogic, random);
+						replaceInt(method, insn, value, dynamicSLogic, random, logicOwner);
 					} else if (config.protectNumbers() && constant instanceof Long value) {
-						replaceLong(method, insn, value, dynamicSLogic, random);
+						replaceLong(method, insn, value, dynamicSLogic, random, logicOwner);
 					} else if (config.protectNumbers() && constant instanceof Float value) {
-						replaceFloat(method, insn, value, dynamicSLogic, random);
+						replaceFloat(method, insn, value, dynamicSLogic, random, logicOwner);
 					} else if (config.protectNumbers() && constant instanceof Double value) {
-						replaceDouble(method, insn, value, dynamicSLogic, random);
+						replaceDouble(method, insn, value, dynamicSLogic, random, logicOwner);
 					}
 				} else if (insn instanceof IntInsnNode intInsn) {
 					if (config.protectNumbers() && (intInsn.getOpcode() == Opcodes.BIPUSH || intInsn.getOpcode() == Opcodes.SIPUSH) && shouldProtectInt(intInsn.operand)) {
-						replaceInt(method, insn, intInsn.operand, dynamicSLogic, random);
+						replaceInt(method, insn, intInsn.operand, dynamicSLogic, random, logicOwner);
 					}
 				}
 
@@ -210,7 +340,7 @@ public final class JarObfuscator {
 			int fieldAccess = Opcodes.ACC_STATIC | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC;
 			fieldAccess |= (classNode.access & Opcodes.ACC_INTERFACE) != 0 ? Opcodes.ACC_PUBLIC : Opcodes.ACC_PRIVATE;
 			classNode.fields.add(new FieldNode(fieldAccess, STRING_CACHE_FIELD, "[Ljava/lang/String;", null, null));
-			initializeStringCache(classNode, stringFields);
+			initializeStringCache(classNode, stringFields, logicOwner);
 		}
 
 		ClassWriter writer = new HierarchyClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS, entries);
@@ -356,7 +486,7 @@ public final class JarObfuscator {
 		return list;
 	}
 
-	private void initializeStringCache(ClassNode classNode, List<StringField> stringFields) {
+	private void initializeStringCache(ClassNode classNode, List<StringField> stringFields, String logicOwner) {
 		int count = stringFields.size();
 		MethodNode stringDecoder = new MethodNode(
 			Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_SYNTHETIC,
@@ -397,7 +527,7 @@ public final class JarObfuscator {
 			);
 			provider.instructions.add(createByteArrayInsn(sf.encrypted()));
 			provider.instructions.add(new LdcInsnNode(sf.key()));
-			provider.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, LOGIC_OWNER, "string", "([BI)Ljava/lang/String;", false));
+			provider.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, logicOwner, "string", "([BI)Ljava/lang/String;", false));
 			provider.instructions.add(new InsnNode(Opcodes.ARETURN));
 			classNode.methods.add(provider);
 		}
@@ -440,42 +570,42 @@ public final class JarObfuscator {
 		return value != 0 && value != 1 && value != -1;
 	}
 
-	private void replaceInt(MethodNode method, AbstractInsnNode target, int value, DynamicSLogic dynamicSLogic, Random random) {
+	private void replaceInt(MethodNode method, AbstractInsnNode target, int value, DynamicSLogic dynamicSLogic, Random random, String logicOwner) {
 		DynamicSLogic.EncodedInt encoded = dynamicSLogic.encodeInt(value, random.nextInt());
 		InsnList list = new InsnList();
 		list.add(new LdcInsnNode(encoded.value()));
 		list.add(new LdcInsnNode(encoded.rule()));
-		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, LOGIC_OWNER, "number", "(II)I", false));
+		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, logicOwner, "number", "(II)I", false));
 		method.instructions.insertBefore(target, list);
 		method.instructions.remove(target);
 	}
 
-	private void replaceLong(MethodNode method, AbstractInsnNode target, long value, DynamicSLogic dynamicSLogic, Random random) {
+	private void replaceLong(MethodNode method, AbstractInsnNode target, long value, DynamicSLogic dynamicSLogic, Random random, String logicOwner) {
 		DynamicSLogic.EncodedLong encoded = dynamicSLogic.encodeLong(value, random.nextInt());
 		InsnList list = new InsnList();
 		list.add(new LdcInsnNode(encoded.value()));
 		list.add(new LdcInsnNode(encoded.rule()));
-		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, LOGIC_OWNER, "number", "(JI)J", false));
+		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, logicOwner, "number", "(JI)J", false));
 		method.instructions.insertBefore(target, list);
 		method.instructions.remove(target);
 	}
 
-	private void replaceFloat(MethodNode method, AbstractInsnNode target, float value, DynamicSLogic dynamicSLogic, Random random) {
+	private void replaceFloat(MethodNode method, AbstractInsnNode target, float value, DynamicSLogic dynamicSLogic, Random random, String logicOwner) {
 		DynamicSLogic.EncodedInt encoded = dynamicSLogic.encodeInt(Float.floatToRawIntBits(value), random.nextInt());
 		InsnList list = new InsnList();
 		list.add(new LdcInsnNode(encoded.value()));
 		list.add(new LdcInsnNode(encoded.rule()));
-		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, LOGIC_OWNER, "numberFloat", "(II)F", false));
+		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, logicOwner, "numberFloat", "(II)F", false));
 		method.instructions.insertBefore(target, list);
 		method.instructions.remove(target);
 	}
 
-	private void replaceDouble(MethodNode method, AbstractInsnNode target, double value, DynamicSLogic dynamicSLogic, Random random) {
+	private void replaceDouble(MethodNode method, AbstractInsnNode target, double value, DynamicSLogic dynamicSLogic, Random random, String logicOwner) {
 		DynamicSLogic.EncodedLong encoded = dynamicSLogic.encodeLong(Double.doubleToRawLongBits(value), random.nextInt());
 		InsnList list = new InsnList();
 		list.add(new LdcInsnNode(encoded.value()));
 		list.add(new LdcInsnNode(encoded.rule()));
-		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, LOGIC_OWNER, "numberDouble", "(JI)D", false));
+		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, logicOwner, "numberDouble", "(JI)D", false));
 		method.instructions.insertBefore(target, list);
 		method.instructions.remove(target);
 	}
