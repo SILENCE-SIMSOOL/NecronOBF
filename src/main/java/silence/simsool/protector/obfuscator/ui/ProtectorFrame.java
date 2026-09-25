@@ -384,7 +384,7 @@ public final class ProtectorFrame extends JFrame {
 
 		JPanel verRow = new JPanel(new BorderLayout());
 		verRow.setOpaque(false);
-		JLabel verLabel = new JLabel("v1.0.0");
+		JLabel verLabel = new JLabel("v1.0.1");
 		verLabel.setForeground(UITheme.TEXT_MUTED);
 		verLabel.setFont(UITheme.FONT_SMALL);
 
